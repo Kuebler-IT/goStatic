@@ -1,51 +1,67 @@
 # Go parameters
-GOCMD=go
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
-BINARY_NAME=goStatic
-BINARY_LINUX=$(BINARY_NAME)-linux
-BINARY_DARWIN=$(BINARY_NAME)-darwin
-BINARY_WIN=$(BINARY_NAME)-windows
+GO         = go
+GO_BUILD   = $(GO) build
+GO_CLEAN   = $(GO) clean
+GO_TEST    = $(GO) test
+GO_GET     = $(GO) get
+GO_INSTALL = $(GO) install
 
-all: deps test build
+GO_BIN_DIR    := $(shell go env GOPATH)/bin
+GOLANGCI_LINT := $(GO_BIN_DIR)/golangci-lint
 
-build:
-	$(GOBUILD) -o $(BINARY_NAME) -v
+BINARY_NAME    := goStatic
+BINARY_VERSION := $(shell git describe --tags --always)
+BINARY_BUILD   := $(shell git rev-parse HEAD)
+BINARY_DATE    := $(shell date +%FT%T%z)
 
-test:
-	$(GOTEST) -v ./...
+LDFLAGS := -ldflags "-X main.VERSION=$(BINARY_VERSION) -X main.BUILD=$(BINARY_BUILD) -X main.BUILDDATE=$(BINARY_DATE)"
+PLATFORMS := linux-amd64 linux-386 linux-arm linux-arm64 darwin-amd64 windows-amd64 windows-386
+
+BINARIES = $(foreach PLATFORM, $(PLATFORMS), $(BINARY_NAME)-$(PLATFORM:windows-%=windows-%.exe))
+
+CURRENT_PLATFORM = $(patsubst %.exe,%,$(patsubst $(BINARY_NAME)-%,%,$(@)))
+OS               = $(word 1, $(subst -, ,$(CURRENT_PLATFORM)))
+ARCH             = $(word 2, $(subst -, ,$(CURRENT_PLATFORM)))
+
+.PHONY: all build build-all test test-all clean deps install linter release
+
+build: deps test $(BINARY_NAME)
+
+all: deps test build build-all
+
+build-all: $(BINARIES)
+
+test: linter
+	$(GO_TEST) -v ./...
+
+test-all: linter
+	$(GO_TEST) -v all
+
+linter: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) run -v
 
 clean:
-	$(GOCLEAN)
-	rm -f $(BINARY_NAME)
-	rm -f $(BINARY_LINUX)-*
-	rm -f $(BINARY_DARWIN)-*
-	rm -f $(BINARY_WIN)-*
-
-run:
-	$(GOBUILD) -o $(BINARY_NAME) -v ./...
-	./$(BINARY_NAME)
+	$(GO_CLEAN)
+	$(GO) mod tidy
+	rm -f $(BINARIES)
 
 deps:
-	$(GOGET) . 
+	$(GO_GET) -u -v ./...
 
 install:
-	$(GOCMD) install
+	$(GO_INSTALL)
 
-# Cross compilation
-all-os: build-linux build-darwin build-windows
+release: deps test test-all build-all
 
-build-linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 $(GOBUILD) -o $(BINARY_LINUX)-amd64 -v
-	CGO_ENABLED=0 GOOS=linux GOARCH=386 $(GOBUILD) -o $(BINARY_LINUX)-i386 -v
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 $(GOBUILD) -o $(BINARY_LINUX)-arm64 -v
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm $(GOBUILD) -o $(BINARY_LINUX)-arm -v
+$(BINARY_NAME):
+	CGO_ENABLED=0 $(GO_BUILD) $(LDFLAGS) -o $@ -v ./...
 
-build-darwin:
-	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 $(GOBUILD) -o $(BINARY_DARWIN)-amd64 -v
+$(PLATFORMS:%=$(BINARY_NAME)-%):
+	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) $(GO_BUILD) $(LDFLAGS) -o $@ -v ./...
 
-build-windows:
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GOBUILD) -o $(BINARY_WIN)-amd64.exe -v
-	CGO_ENABLED=0 GOOS=windows GOARCH=386 $(GOBUILD) -o $(BINARY_WIN)-i386.exe -v
+$(BINARY_NAME)-windows-%.exe:
+	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) $(GO_BUILD) $(LDFLAGS) -o $@ -v ./...
+
+# install golangci-lint if not exist
+$(GOLANGCI_LINT):
+	$(GO_GET) -u github.com/golangci/golangci-lint/cmd/golangci-lint
