@@ -68,7 +68,7 @@ func (fs dotFileHidingFileSystem) Open(name string) (http.File, error) {
 }
 
 func progInfo() {
-    fmt.Print("goStatic v", VERSION," - simple static webserver\n")
+    fmt.Print("goStatic ", VERSION," - simple static webserver\n")
     fmt.Print("Copyright (C) 2019  Benjamin Kübler <b.kuebler@kuebler-it.de>\n\n")
     fmt.Println("Build:", BUILD)
     fmt.Print("Date:  ", BUILDDATE, "\n\n")
@@ -97,7 +97,7 @@ func main() {
     flag.Parse()
 
     if *printUsage {
-        fmt.Print("goStatic v", VERSION," - simple static webserver\n\n")
+        fmt.Print("goStatic ", VERSION," - simple static webserver\n\n")
         flag.PrintDefaults()
         os.Exit(1)
     }
@@ -106,7 +106,7 @@ func main() {
         progInfo()
     }
     if !*quiet {
-        log.Print("Starting goStatic v", VERSION," - simple static webserver...")
+        log.Print("Starting goStatic ", VERSION," - simple static webserver...")
         log.Println("Server Root Dir:", *gs_root_dir)
         log.Print("You can access the server on http://", *gs_http_ip, ":", *gs_http_port)
     }
